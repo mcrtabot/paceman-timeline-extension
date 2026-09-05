@@ -1,0 +1,1015 @@
+/*
+ * MCSRImageBuilder の resources/theme/default/indicator.css からの移植。
+ *
+ * クラス名は上流と同じ mcsr-indicator__* のまま。差分を追いやすい。
+ * Shadow DOM に入れるのでページ側の Tailwind / HeroUI とは衝突しない。
+ *
+ * 変数は --id-* から --ptc-* に改名した。既定値はここ、テーマごとの差分は
+ * .mcsr-indicator へインラインで上書きする。
+ * テクスチャとアイコンは要素ごとの inline background-image で入れる。
+ * 拡張とハーネスで URL の解決方法が違うので、CSS には焼き込めない。
+ */
+
+.mcsr-indicator {
+  /* --- 既定トークン。テーマがインラインで上書きする --- */
+  --ptc-text-color: rgba(255, 255, 255, 1);
+  --ptc-highlighted-text-color: rgba(255, 128, 128, 1);
+  --ptc-background: transparent;
+  --ptc-digits-family: ui-monospace, monospace;
+  --ptc-font: normal normal 18px/1 var(--ptc-digits-family);
+  --ptc-digits-font: normal normal 18px/1 var(--ptc-digits-family);
+  --ptc-line-size: 24px;
+  --ptc-line-border: #fff;
+  --ptc-dot-size: 7px;
+  --ptc-icon-size: 40px;
+  --ptc-face-size: 32px;
+  --ptc-icon-drop: rgba(0, 0, 0, 0.85);
+  --ptc-texture-scale: 60px;
+  --ptc-icon-offset: -44px;
+  --ptc-text-offset: 18px;
+  --ptc-context-text-space: 0px;
+  --ptc-context-icon-size: 24px;
+  --ptc-display-pace-text: block;
+  --ptc-display-pace-text-label: none;
+  --ptc-display-pace-text-rotate: 32deg;
+  --ptc-highlighted-shadow-color: rgba(255, 128, 128, 1);
+
+  box-sizing: border-box;
+  font: var(--ptc-font);
+  color: var(--ptc-text-color);
+  background: var(--ptc-background);
+  /*
+   * アイコンは上へ、傾けたタイムは下へはみ出すので、その分を取る。
+   * 右だけ広いのは、完走ランの finish が 100% ちょうどに来て、
+   * そこから傾いたタイムがさらに右へ張り出すため。
+   *
+   * 下は context マーカーのぶんタイムが下がるので、同じだけ足す。
+   */
+  padding: 72px 60px calc(76px + var(--ptc-context-text-space, 0px)) 28px;
+  /*
+   * 置き場所が広すぎるときの上限。既定は無し（表と一覧は列の幅がそのまま欲しい）。
+   * 個別ランページだけ効かせている。col-12 は container いっぱいまで広がるので、
+   * そこに合わせるとバーだけが伸びて本家のカードから浮く。
+   */
+  max-width: var(--ptc-max-width, none);
+  margin-inline: auto;
+}
+
+/* 3 つのコンテナは高さ 0 で子は絶対配置。同じ y に重なり、top だけで層を分ける */
+.mcsr-indicator__line-container,
+.mcsr-indicator__dot-container,
+.mcsr-indicator__timeline-container {
+  position: relative;
+  width: 100%;
+}
+
+/* --- バー本体 --- */
+
+.mcsr-indicator__line {
+  position: absolute;
+  height: var(--ptc-line-size);
+  background: #666;
+  background-size: var(--ptc-texture-scale);
+  background-repeat: repeat;
+  image-rendering: pixelated;
+  transform: translate3d(0, -50%, 0);
+}
+
+.mcsr-indicator__line--pace {
+  border: 1px solid var(--ptc-line-border);
+  /* 枠を含めても隣の区間と隙間なく繋がるように */
+  box-sizing: border-box;
+  margin-left: -1px;
+}
+
+/* --- 毎分の目盛り --- */
+
+.mcsr-indicator__dot {
+  position: absolute;
+  height: var(--ptc-dot-size);
+  width: var(--ptc-dot-size);
+  background: #fff;
+  transform: translate3d(-50%, -50%, 0);
+}
+
+/* エンドは地面が明るく、白のままだと目盛りが消える。上流も同じ扱い */
+.mcsr-indicator__dot--enter_end {
+  background: #666;
+}
+
+/* --- スプリット（アイコン + タイム） --- */
+
+.mcsr-indicator__timeline-container--pace {
+  top: 0;
+}
+
+.mcsr-indicator__item {
+  position: absolute;
+  top: 0;
+}
+
+/*
+ * 実体は <img>。候補を順に試すため。多重 background だと透過部分から下が透ける。
+ *
+ * ここには輪郭を付けない。drop-shadow は画像の背後に描かれるので、透明度のある絵だと
+ * その色が透けて絵の色が変わる。/stats/nether.webp は全面がアルファ 160-190 の
+ * 半透明で、ポータルが白っぽくなっていた。暗い背景では外側の影だけで受ける。
+ *
+ * image-rendering は auto。PaceMan のアイコンは 80〜345px のレンダリング画像で
+ * ドット絵ではないので、pixelated だと縮小時にギザギザになる。バーの方は pixelated のまま。
+ */
+.mcsr-indicator__icon {
+  position: absolute;
+  top: var(--ptc-icon-offset);
+  height: var(--ptc-icon-size);
+  width: var(--ptc-icon-size);
+  box-sizing: border-box;
+  object-fit: contain;
+  transform: translate3d(-50%, -50%, 0);
+  image-rendering: auto;
+  filter: drop-shadow(0 2px 3px var(--ptc-icon-drop));
+}
+
+/*
+ * スプリットタイム。バーの下、context マーカーのさらに下に置く。
+ *
+ * バーの下端は +12px。context マーカーはそこから下に伸びるので、出しているあいだは
+ * その高さぶん逃がさないと数字が目盛りや絵と重なる。逃がす量は見た目で変わるので、
+ * --ptc-context-text-space に設定側から入れてもらう（content/theme.ts）。
+ */
+.mcsr-indicator__text {
+  position: absolute;
+  top: calc(var(--ptc-text-offset) + var(--ptc-context-text-space, 0px));
+  width: 0;
+  height: 0;
+  display: var(--ptc-display-pace-text);
+  transform: rotate(var(--ptc-display-pace-text-rotate));
+}
+
+.mcsr-indicator__text-inner {
+  position: absolute;
+  display: flex;
+  gap: 0.4em;
+  white-space: nowrap;
+}
+
+.mcsr-indicator__text__label {
+  display: var(--ptc-display-pace-text-label);
+}
+
+.mcsr-indicator__text__time {
+  font: var(--ptc-digits-font);
+}
+
+/* PB より速いスプリットの強調。上流の item--highlighted と同じ */
+.mcsr-indicator__item--highlighted {
+  color: var(--ptc-highlighted-text-color);
+}
+
+/*
+ * 暗くて背景に沈む絵にだけ輪郭を付ける。対象はテーマの outlinedIcons。
+ * タイムラインでも SPLIT 列でも設定の見本でも同じ見た目にしたいので、
+ * 置き場所に依存しない共通クラスにしてある。
+ *
+ * ぼかし 0 の drop-shadow を上下左右に連ねるとアルファの形をなぞる輪郭になる。
+ * 前段の結果にさらに影が付くので、1px 指定で実効 2px 前後。
+ */
+/*
+ * 色は変数にしない。--ptc-icon-outline は .mcsr-indicator の中で定義されるので、
+ * その外にある SPLIT 列では解決できず、filter 宣言ごと無効になっていた。
+ */
+.ptc-outlined {
+  filter:
+    drop-shadow(1px 0 0 rgba(255, 255, 255, 0.45))
+    drop-shadow(-1px 0 0 rgba(255, 255, 255, 0.45))
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.45))
+    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.45));
+}
+
+/* 輪郭を付けていないので、強調はにじませた光で示す */
+.mcsr-indicator__item--highlighted .mcsr-indicator__icon {
+  filter:
+    drop-shadow(0 0 3px var(--ptc-highlighted-shadow-color))
+    drop-shadow(0 0 3px var(--ptc-highlighted-shadow-color))
+    drop-shadow(0 2px 3px var(--ptc-icon-drop));
+}
+
+/* --- context マーカー。溶岩バケツやブレイズ棒など。既定は非表示 --- */
+
+.mcsr-indicator__context-container {
+  position: relative;
+  width: 100%;
+  display: var(--ptc-display-context, none);
+}
+
+/*
+ * バーの下に短い目盛りを置く。表と一覧では余白が無いと切れるので、ON のときだけ
+ * --ptc-context-space で下を広げる。
+ *
+ * 要素自体は当たり判定で、見える目盛りは ::after が描く。目盛りは 2px しかなく、
+ * そのままではホバーがほとんど当たらない。バーの下端から目盛りの下端までを
+ * 覆う 14x14 を触れる範囲にしている。
+ */
+.mcsr-indicator__context {
+  position: absolute;
+  top: calc(var(--ptc-line-size) / 2);
+  width: 14px;
+  height: 14px;
+  transform: translate3d(-50%, 0, 0);
+}
+
+.mcsr-indicator__context::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 2px;
+  height: 8px;
+  background: var(--ptc-context-color, rgba(255, 255, 255, 0.65));
+  transform: translateX(-50%);
+}
+
+/* まとめたものは少し太くして、複数あることが分かるようにする */
+.mcsr-indicator__context--many::after {
+  width: 4px;
+}
+
+/*
+ * 絵で出す設定のとき。目盛りは引っ込めて、バーの下にアイテムの絵を置く。
+ *
+ * 大きさは置き場所で変える。個別ランページはバーが長いので絵も大きく取れるが、
+ * 表と一覧は行の高さが決まっているので小さくする（RunList / LiveTable のトークン）。
+ * 下の余白とタイムを逃がす量もこの値から計算する（content/theme.ts）。
+ */
+.mcsr-indicator__context--icon {
+  width: var(--ptc-context-icon-size);
+  height: calc(var(--ptc-context-icon-size) + 2px);
+}
+
+.mcsr-indicator__context--icon::after {
+  content: none;
+}
+
+.mcsr-indicator__context-icon {
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: var(--ptc-context-icon-size);
+  height: var(--ptc-context-icon-size);
+  transform: translateX(-50%);
+  image-rendering: pixelated;
+}
+
+/* まとめたものは下に線を引く。絵は先頭の 1 つしか出せないので、続きがあることを示す */
+.mcsr-indicator__context--icon.mcsr-indicator__context--many::after {
+  content: '';
+  bottom: -1px;
+  width: calc(var(--ptc-context-icon-size) * 0.75);
+  height: 2px;
+}
+
+/* px/分 固定なので長いランは幅を超える。同じ時刻を同じ横位置に保つため、はみ出しはスクロール */
+/*
+ * 先端マーカーを出すときだけ右を広げる。顔は中心が現在位置なので半分（16px）はみ出し、
+ * その右 6px に現在時刻が続く。18px の等幅で mm:ss が 59px、h:mm:ss だと 77px なので
+ * 16 + 6 + 77 = 99px。既定の 60px では 17:50 あたりで数字が切れていた。
+ *
+ * 分母で受けないのは、未完走を 3 分刻みで切り上げる意味（右の余白が到達点との差を
+ * 表す）が崩れるため。一覧と履歴は別の padding を持っていて、そちらが優先される。
+ */
+.mcsr-indicator--marked {
+  padding-right: 104px;
+}
+
+.mcsr-indicator-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* --- 複数ランを積むパネル。Active Pace 一覧とラン履歴 --- */
+
+.ptc-panel {
+  color: var(--ptc-text-color, #e6e8eb);
+  font: normal normal 13px/1.4 system-ui, sans-serif;
+  background: rgba(31, 41, 55, 0.35);
+  border: 1px solid rgba(75, 85, 99, 0.6);
+  border-radius: 12px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+
+.ptc-panel__header {
+  padding: 10px 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.4);
+}
+
+.ptc-panel__empty {
+  padding: 18px 14px;
+  color: #8b95a3;
+}
+
+.ptc-row + .ptc-row {
+  border-top: 1px solid rgba(75, 85, 99, 0.25);
+}
+
+/*
+ * 完走した行の印。背景をうっすら染めるだけ。
+ * バーの枠色でも試したが、中身が草や明るいテクスチャで埋まっていて細い枠は紛れた。
+ * COMPLETED のバッジも出していたが、背景色と TIME 列で足りるので外した。
+ */
+.ptc-row--completed {
+  background: rgba(74, 222, 128, 0.1);
+}
+
+/*
+ * 遷移する行・セルは <a>。Cmd/Ctrl+クリックと中クリックで新しいタブに開けるようにする
+ * ため（onClick で window.location を叩くとどちらも効かない）。見た目は素のままに
+ * したいので、ブラウザ既定の色と下線をここで戻す。
+ */
+.ptc-row--clickable {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ptc-row--clickable:hover {
+  background: rgba(75, 85, 99, 0.18);
+}
+
+.ptc-row--completed.ptc-row--clickable:hover {
+  background: rgba(74, 222, 128, 0.18);
+}
+
+.ptc-row__label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 14px 0;
+}
+
+.ptc-row__name {
+  font-weight: 600;
+}
+
+.ptc-row__time {
+  font-family: var(--ptc-digits-family, ui-monospace, monospace);
+  color: #b9c3cf;
+}
+
+/*
+ * 一覧では 1 本ずつを詰めて出す。既定の余白は単独表示向け。
+ *
+ * サイズ系のトークンは RunList の COMPACT_TOKENS からインラインで渡す。
+ * ここに書いても効かない。実際 32px と書いていたのにテーマの 48px のまま描かれ、
+ * はみ出したぶんが overflow-y: hidden で切れていた。
+ * 余白はトークンではないのでここでいい。アイコンの上端は -40px に来るので、
+ * 輪郭と影のぶんを見て 48px 取る。
+ */
+.ptc-row .mcsr-indicator {
+  padding-top: 48px;
+  padding-bottom: calc(14px + var(--ptc-context-space, 0px));
+}
+
+/* --- 進行中ランの現在位置マーカー（走者の頭） --- */
+
+/*
+ * MCSRPaceWidget の face マーカーと同じ挙動。バーの上を歩くように 2 ステップで
+ * 上下し、位置の変化は transition で追う。
+ * 頭アイコンは 8x8 を拡大したドット絵なので image-rendering は pixelated。
+ */
+.mcsr-indicator__face-container {
+  position: relative;
+  width: 100%;
+}
+
+.mcsr-indicator__face {
+  position: absolute;
+  width: var(--ptc-face-size);
+  height: var(--ptc-face-size);
+  image-rendering: pixelated;
+  border-radius: 2px;
+  transform: translate3d(-50%, -50%, 0);
+  transition: left 200ms ease-out;
+  animation: 1s steps(2, end) 0s infinite ptc-walk;
+  filter: drop-shadow(0 2px 3px var(--ptc-icon-drop));
+}
+
+/* 現在時刻。顔の右。顔は歩行で上下するがこちらは揺らさない。追従は顔と同じ transition */
+.mcsr-indicator__face-time {
+  position: absolute;
+  font: var(--ptc-face-time-font, var(--ptc-digits-font));
+  color: var(--ptc-text-color);
+  white-space: nowrap;
+  transform: translate3d(calc(var(--ptc-face-size) / 2 + 6px), -50%, 0);
+  transition: left 200ms ease-out;
+  text-shadow:
+    0 0 3px var(--ptc-icon-drop),
+    0 0 3px var(--ptc-icon-drop),
+    0 1px 2px var(--ptc-icon-drop);
+}
+
+@keyframes ptc-walk {
+  0% {
+    transform: translate3d(-50%, -50%, 0);
+  }
+  100% {
+    transform: translate3d(-50%, -62.5%, 0);
+  }
+}
+
+/* 走り終わったランは歩かせない */
+.mcsr-indicator__face--still {
+  animation: none;
+}
+
+/*
+ * 諦めたランの先端。到達点から右へ ... 顔 RESET と並べる。
+ *
+ * 顔と文字を個別に絶対配置すると、点の幅ぶんの逃がし量をフォント依存で
+ * 決めることになる。ひとかたまりを flex で並べて、左端だけ到達点に置く。
+ */
+.mcsr-indicator__reset {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font: var(--ptc-face-time-font, var(--ptc-digits-font));
+  color: var(--ptc-text-color);
+  transform: translate3d(6px, -50%, 0);
+  text-shadow:
+    0 0 3px var(--ptc-icon-drop),
+    0 0 3px var(--ptc-icon-drop),
+    0 1px 2px var(--ptc-icon-drop);
+}
+
+/*
+ * バーが途切れて先が無いことを示す点々。
+ *
+ * 文字の ... は使わない。字はベースラインに載るので、行の中央に揃えても
+ * 点はその下寄りに出る。バーの上下中心にちょうど並べたいので描いてしまう。
+ * 高さが点の直径そのものなので、flex の align-items: center がそのまま効く。
+ */
+.mcsr-indicator__reset-dots {
+  width: 22px;
+  height: 3px;
+  opacity: 0.55;
+  background-image: radial-gradient(circle at 1.5px 1.5px, currentColor 1.5px, transparent 1.6px);
+  background-size: 8px 3px;
+  background-repeat: repeat-x;
+}
+
+/* 走っていないので色を落とす。歩行アニメも付けない */
+.mcsr-indicator__reset-face {
+  width: var(--ptc-face-size);
+  height: var(--ptc-face-size);
+  image-rendering: pixelated;
+  border-radius: 2px;
+  filter: grayscale(1) drop-shadow(0 2px 3px var(--ptc-icon-drop));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcsr-indicator__face {
+    animation: none;
+  }
+}
+
+/* --- Active Pace の自前テーブル --- */
+
+/*
+ * 本家の行を隠してこの表で置き換える。カードのヘッダは本家のものが上に残る。
+ *
+ * 寸法は本家の行に合わせてある。
+ *   行     高さ 60px / font 16px / line-height 24px / padding 12px 16px
+ *   ヘッダ 高さ 32px / font 12px / padding 8px 16px
+ *   頭     32px、スプリットアイコン 28px、セル内の間隔 12px
+ */
+.ptc-table {
+  /* 行と展開したスプリット一覧で同じ列構成。SPLIT と TIME が揃う */
+  --ptc-table-columns:
+    minmax(160px, 0.85fr)
+    minmax(170px, 0.95fr)
+    76px
+    84px
+    minmax(300px, 3.6fr);
+
+  color: var(--ptc-text-color, #e6e8eb);
+  font: normal normal 16px/24px system-ui, sans-serif;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.ptc-table__row {
+  display: grid;
+  grid-template-columns: var(--ptc-table-columns);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  /* タイムライン列を負マージンで食い込ませても、行の高さは本家のままに保つ */
+  min-height: 60px;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+.ptc-table__row--head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 16px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8b95a3;
+  background: rgba(17, 24, 39, 0.92);
+  backdrop-filter: blur(2px);
+}
+
+.ptc-table__row--completed {
+  background: rgba(74, 222, 128, 0.1);
+}
+
+/*
+ * お気に入り。完走の色より後に置いて、こちらが勝つようにしてある。
+ * 並び順で既に上に来ているので、背景はそれと分かる程度の薄さで足りる。
+ */
+.ptc-table__row--fav {
+  background: rgba(255, 201, 77, 0.08);
+}
+
+.ptc-table__row--fav .ptc-table__name {
+  color: #ffd98a;
+}
+
+/*
+ * 操作は本家のトップページに合わせる。
+ *   頭アイコン プレイヤーの stats ページへ
+ *   名前       liveAccount が入っているときだけ Twitch へ
+ *   タイム     クリックでスプリット一覧を開閉
+ * 行全体はクリックにしない。上の操作と競合して誤爆する。
+ * ランページへの導線はタイムライン列が持つ。
+ */
+.ptc-table__head-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  line-height: 0;
+  flex: none;
+  border-radius: 3px;
+}
+
+.ptc-table__head-link:hover img {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 1px;
+}
+
+.ptc-table__name--live {
+  color: #c084fc;
+  text-decoration: none;
+}
+
+.ptc-table__name--live:hover {
+  text-decoration: underline;
+}
+
+.ptc-table__chevron {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: #8b95a3;
+  transition: transform 120ms ease-out;
+}
+
+.ptc-table__chevron--open {
+  transform: rotate(180deg);
+}
+
+.ptc-table__timeline--clickable {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ptc-table__timeline--clickable:hover {
+  background: rgba(75, 85, 99, 0.18);
+  border-radius: 6px;
+}
+
+/* 展開したスプリット一覧 */
+.ptc-table__splits {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 12px;
+  font-size: 14px;
+  color: #b9c3cf;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+/* 行と同じ列構成。SPLIT 名と TIME がそれぞれの列に揃う。 */
+.ptc-table__splits-row {
+  display: grid;
+  grid-template-columns: var(--ptc-table-columns);
+  align-items: center;
+  gap: 12px;
+  padding: 1px 16px;
+}
+
+.ptc-table__splits-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ptc-table__splits-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ptc-table__splits-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex: none;
+}
+
+.ptc-table__splits-time {
+  font-family: var(--ptc-digits-family, ui-monospace, monospace);
+  color: #e6e8eb;
+}
+
+.ptc-table__empty {
+  padding: 18px 16px;
+  color: #8b95a3;
+}
+
+.ptc-table__player,
+.ptc-table__split {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ptc-table__name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ptc-table__head {
+  width: 32px;
+  height: 32px;
+  border-radius: 2px;
+  image-rendering: pixelated;
+  flex: none;
+}
+
+.ptc-table__split-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex: none;
+}
+
+.ptc-table__split span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ptc-table__version {
+  color: #9fb4c9;
+}
+
+.ptc-table__time {
+  font: inherit;
+  font-family: var(--ptc-digits-family, ui-monospace, monospace);
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ptc-table__time:disabled {
+  cursor: default;
+}
+
+.ptc-table__time:not(:disabled):hover {
+  color: #fff;
+}
+
+.ptc-table__timeline {
+  min-width: 0;
+  /* この列だけ行の上下 padding に食い込ませて、バーとアイコンの高さを稼ぐ */
+  margin-top: -7px;
+  margin-bottom: -7px;
+}
+
+/*
+ * 食い込ませたぶんを含めて使える高さは 48px。アイコン上端 -34px、バー下端 +9px なので
+ * 46px に収まる。
+ *
+ * 左の 10px は、バー先頭の区間が隣と枠を重ねるための margin-left ではみ出すぶん。
+ *
+ * 右の 64px は先端の顔とタイムのぶん。これを分母側で受けると 14 分のランが
+ * 18 分の縮尺に動いて、15 分の下限が崩れる。マーカーが 100% に来たとき、
+ * タイムは顔半分 + 6px の右から 45px ほど伸びるので 64px で収まる。
+ */
+.ptc-table__timeline .mcsr-indicator {
+  /* 下は 12px。24px の頭がバー中心から 12px 下へ出るので、狭いと切れる */
+  padding: 36px 64px calc(12px + var(--ptc-context-space, 0px)) 10px;
+}
+
+/*
+ * シートから切り出すアイコン。トップページは個別ファイルではなく 1 枚のシートを使う。
+ * 表示サイズはトークン次第なので、列と行だけ受け取って calc で拡大する。
+ */
+.mcsr-indicator__icon--sprite,
+.ptc-sprite {
+  background-image: var(--ptc-sprite-url);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+.mcsr-indicator__icon--sprite {
+  background-size:
+    calc(var(--ptc-icon-size) * var(--ptc-sprite-cols))
+    calc(var(--ptc-icon-size) * var(--ptc-sprite-rows));
+  background-position:
+    calc(var(--ptc-icon-size) * var(--ptc-sprite-col) * -1)
+    calc(var(--ptc-icon-size) * var(--ptc-sprite-row) * -1);
+}
+
+/* 表の中の小さいアイコン。サイズは CSS 側で決まるので em で追従させる */
+.ptc-table__split-icon.ptc-sprite {
+  background-size: calc(28px * var(--ptc-sprite-cols)) calc(28px * var(--ptc-sprite-rows));
+  background-position:
+    calc(28px * var(--ptc-sprite-col) * -1)
+    calc(28px * var(--ptc-sprite-row) * -1);
+}
+
+.ptc-table__splits-icon.ptc-sprite {
+  background-size: calc(20px * var(--ptc-sprite-cols)) calc(20px * var(--ptc-sprite-rows));
+  background-position:
+    calc(20px * var(--ptc-sprite-col) * -1)
+    calc(20px * var(--ptc-sprite-row) * -1);
+}
+
+/* --- 今 MCSR を回している人の顔 --- */
+
+/*
+ * トップページは人数しか出していないが、API は名前まで返している。
+ * 下の表はペースが出ている人で、こちらは回しているだけの人も含む。
+ */
+.ptc-players {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.3);
+  font: normal normal 12px/1.4 system-ui, sans-serif;
+  color: #8b95a3;
+}
+
+.ptc-players__toggle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.ptc-players__toggle:hover {
+  color: #cbd3dd;
+}
+
+/* 三角は border で描く。shadow root にはページのアイコンフォントが届かない */
+.ptc-players__caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.12s ease;
+}
+
+.ptc-players--open .ptc-players__caret {
+  transform: rotate(90deg);
+}
+
+/*
+ * 開いた一覧。列幅は auto-fill にして、広げたカードの幅を余さず使う。
+ * 高さは頭打ちにする。走っている人は 100 人を超えることがあり、
+ * 上限が無いと Active Pace の表を画面の外まで押し下げる。
+ */
+.ptc-players__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 2px 8px;
+  min-width: 0;
+  flex: 1;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.ptc-players__entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.ptc-players__entry-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ptc-players__entry--fav .ptc-players__name {
+  color: #ffd98a;
+}
+
+/* 畳んだ列では星を出す余地が無いので、枠の色で分かるようにする */
+.ptc-players__face-link--fav img {
+  outline: 2px solid rgba(255, 201, 77, 0.75);
+  outline-offset: 1px;
+}
+
+/* 畳んだときの顔。<a> で包んだので、包み側は絵と同じ大きさに留める */
+.ptc-players__face-link {
+  display: block;
+  line-height: 0;
+  border-radius: 2px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ptc-players__face-link:hover img {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 1px;
+}
+
+.ptc-players__entry:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ptc-players__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #c3cad4;
+}
+
+.ptc-players__entry:hover .ptc-players__name {
+  color: #fff;
+}
+
+.ptc-players__faces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ptc-players__face {
+  width: 24px;
+  height: 24px;
+  border-radius: 2px;
+  image-rendering: pixelated;
+  cursor: pointer;
+  flex: none;
+}
+
+.ptc-players__faces .ptc-players__face:hover {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 1px;
+}
+
+/* --- お気に入りの星 --- */
+
+/*
+ * 既定は透明にしておき、登録済みか、行にかざしたときだけ出す。
+ * 走者が並ぶ画面で星が全部見えていると、肝心のタイムとバーより先に目に入る。
+ * キーボードで来たときも出さないと、見えない的を押すことになる。
+ */
+.ptc-fav {
+  flex: none;
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  line-height: 0;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.ptc-fav svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.ptc-fav--on,
+.ptc-fav:focus-visible,
+.ptc-table__row:hover .ptc-fav,
+.ptc-players__entry:hover .ptc-fav {
+  opacity: 1;
+}
+
+/*
+ * かざしたときは白を少し上げるだけ。ON と同じ琥珀色にすると、登録済みなのか
+ * かざしているだけなのか見分けが付かない。
+ * :hover はクラス 2 つ分の詳細度を持つので、ON 側も :hover 付きで書いて勝たせる。
+ */
+.ptc-fav:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ptc-fav--on,
+.ptc-fav--on:hover {
+  color: #ffc94d;
+}
+
+/*
+ * プロフィールの見出しに単独で置く星。かざす行が無いので常に見せる。
+ * 見出しの文字に合わせて大きめに取り、上下の中心を名前に合わせる。
+ */
+.ptc-fav-solo {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+/*
+ * 色はここで指定しない。.ptc-fav-solo .ptc-fav はクラス 2 つで .ptc-fav--on より
+ * 詳細度が高く、登録しても色が変わらなくなる。既定色は .ptc-fav の 1 か所に持つ。
+ */
+.ptc-fav-solo .ptc-fav {
+  opacity: 1;
+}
+
+.ptc-fav-solo .ptc-fav svg {
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
+}
+
+/* --- 個別ランページの下に出す MCSRImageBuilder へのリンク --- */
+
+/*
+ * タイムラインと同じ幅の箱を作って右端に寄せる。重ねない。
+ * 下の余白（padding-bottom）には完走ランの傾いたタイムが右下まで張り出していて、
+ * そこへ潜り込ませると数字とリンクが重なる。
+ */
+.ptc-actions {
+  margin: 2px auto 6px;
+  padding-right: 8px;
+  text-align: right;
+  line-height: 1;
+}
+
+/*
+ * 常に出しておくが、本家のカードより先に目に入らない濃さにする。
+ * 文字は Shadow ホストが継ぐページのフォントのまま。ここだけ Minecraft 体にすると
+ * ただのリンクがタイムラインの一部に見える。
+ */
+.ptc-action {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ptc-action:hover,
+.ptc-action:focus-visible {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: underline;
+}

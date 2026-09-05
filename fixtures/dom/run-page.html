@@ -1,0 +1,64 @@
+<!--
+  /stats/run/2827631/ の DOM 骨格。2026-09-05 に実ページから採取した
+  タグ + クラスのツリーを、そのまま再構成したもの。
+
+  画像の src は harness 用のダミー（実ページは Next.js の /_next/image?url=...
+  形式で、ここでは意味を持たないため）。**構造（入れ子とクラス名）と、
+  スプリット行の img.icon の alt / p.split-name のテキストは実物と一致している。**
+  VOD シークの転送先を alt で引くので、ここは実物どおりでないといけない。
+
+  実物との差分を見張るのはカナリアテスト（実 paceman.gg に対して
+  「アンカーがまだ存在するか」だけを見る）の役目。
+-->
+<main class="main world">
+  <div class="container">
+    <div class="row">
+      <div class="col-12 twitchWrapper">
+        <div class="vod">
+          <div class="noBlack"></div>
+          <div><div class="fake-iframe">(twitch embed)</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="row justify-content-center">
+      <div class="col-12">
+        <div class="runHeader">
+          <h1 class="header">17:39 Completion by 3x7en</h1>
+          <div class="row justify-content-center">
+            <div class="col-12 last-updated">Last updated: 2026-09-05</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row justify-content-center">
+      <div class="col-12">
+        <div class="run-card">
+          <div class="card-bg"></div>
+          <div class="staticWrapper">
+            <div></div>
+            <a class="nameWrapper"><p class="playerName">3x7en</p></a>
+            <p class="runDate">2026-09-05</p>
+            <p class="secretId">2827631</p>
+          </div>
+          <div class="card-line-wrapper">
+            <div class="card-line"><img class="icon" alt="nether" /><p class="split-name has-vod">2:20</p></div>
+            <div class="card-line"><img class="icon" alt="bastion" /><p class="split-name has-vod">4:33</p></div>
+            <div class="card-line"><img class="icon" alt="fortress" /><p class="split-name has-vod">9:23</p></div>
+            <div class="card-line"><img class="icon" alt="first_portal" /><p class="split-name has-vod">11:50</p></div>
+            <div class="card-line"><img class="icon" alt="stronghold" /><p class="split-name has-vod">13:35</p></div>
+            <div class="card-line"><img class="icon" alt="end" /><p class="split-name has-vod">15:45</p></div>
+            <div class="card-line"><img class="icon" alt="finish" /><p class="split-name has-vod">17:39</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row justify-content-center align-content-center">
+      <div class="col-12">
+        <div class="runButtons">
+          <button class="btn btn-primary copy-splits">Copy Splits</button>
+          <button class="btn btn-primary copy-url">Copy URL</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>

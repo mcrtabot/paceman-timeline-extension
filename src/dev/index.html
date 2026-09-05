@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>paceman-timeline-extension — dev harness</title>
+    <style>
+      body { margin: 0; background: #14171c; color: #e6e8eb; font: 14px system-ui, sans-serif; }
+      h1 { font-size: 16px; margin: 0 0 4px; }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #8b95a3; margin: 28px 0 8px; }
+      .wrap { padding: 20px 24px 80px; }
+      .case { background: #1c2029; border: 1px solid #2a303b; border-radius: 8px; padding: 4px 8px 8px; margin-bottom: 14px; overflow-x: auto; }
+      .case > .label { font-size: 12px; color: #8b95a3; padding: 6px 4px 0; }
+      button { background: #2d3441; color: #e6e8eb; border: 1px solid #3d4553; border-radius: 5px; padding: 6px 11px; font: inherit; cursor: pointer; margin-right: 6px; }
+      button:hover { background: #38404f; }
+      #log { font: 12px ui-monospace, monospace; color: #9fb4c9; white-space: pre-wrap; margin-top: 8px; min-height: 3em; }
+      #stage { background: #23272f; border: 1px dashed #3d4553; border-radius: 8px; margin-top: 10px; }
+      #stage .main { padding: 10px; }
+      #stage .run-card { background: #2b303a; border-radius: 6px; padding: 8px; margin-top: 6px; }
+      #stage .card-line { display: flex; gap: 8px; align-items: center; }
+      #stage .card-line img { width: 20px; height: 20px; background: #444; }
+      #stage p, #stage h1 { margin: 2px 0; font-size: 13px; }
+      #stage .fake-iframe, #stage .card-bg, #stage .noBlack { display: none; }
+      .ptc-dev-clock { background: #1c2029; border: 1px solid #2a303b; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+      .ptc-dev-clock__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+      .ptc-dev-clock__row > span:first-child { color: #8b95a3; font-size: 12px; min-width: 3em; }
+      .ptc-dev-clock button.is-on { background: #3d5570; border-color: #5b7fa6; }
+      .ptc-dev-clock code { font: 13px ui-monospace, monospace; color: #e6e8eb; min-width: 6em; }
+      .ptc-dev-clock__readout { font: 12px ui-monospace, monospace; color: #9fb4c9; }
+      .ptc-dev-clock__readout b { color: #ff9b6b; margin-left: 8px; }
+      input[type="range"] { accent-color: #5b7fa6; }
+    </style>
+  </head>
+  <body>
+    <div id="root" class="wrap"></div>
+    <script type="module" src="./harness.tsx"></script>
+  </body>
+</html>

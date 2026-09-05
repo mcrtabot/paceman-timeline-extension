@@ -1,0 +1,42 @@
+<!--
+  トップページ（/）の DOM 骨格。2026-09-05 に実ページから採取したタグ + クラスのツリーを再構成したもの。
+  テキストはダミーだが、**入れ子とクラス名は実物と一致している**。
+
+  重要なのは main 直下の縦並び:
+      main > div.flex.flex-col.h-full.fade-in
+        ├─ div.w-full.text-center.mb-8        … タイトル
+        └─ div.bg-gray-800/30...              … Active Pace カード
+             ├─ div.p-3.bg-gray-800/50...     … カードのヘッダ
+             └─ div.overflow-auto.h-full
+                  └─ div.w-full
+                       └─ div.overflow-y-auto.max-h-[50vh].pb-4   … 行のスクローラ
+-->
+<main class="flex-1 container mx-auto px-4 py-6 flex flex-col">
+  <div class="flex flex-col h-full fade-in">
+    <div class="w-full text-center mb-8">
+      <h1 class="relative inline-block text-5xl lg:text-7xl">PaceMan</h1>
+      <p class="text-lg text-gray-300 mt-2 fade-in">Minecraft speedrun pace tracking</p>
+    </div>
+    <div class="bg-gray-800/30 backdrop-blur-sm border border-gray-700 rounded-xl shadow-xl overflow-hidden flex-1 max-w-5xl mx-auto w-full">
+      <div class="p-3 bg-gray-800/50 border-b border-gray-700">
+        <div class="flex items-center">
+          <h2 class="text-xl font-medium">Active Pace</h2>
+        </div>
+        <div class="flex items-center gap-4">
+          <button class="text-gray-300 hover:text-white transition-all p-2">filter</button>
+        </div>
+      </div>
+      <div class="overflow-auto h-full">
+        <div class="w-full">
+          <div class="overflow-y-auto max-h-[50vh] pb-4">
+            <div class="grid grid-cols-[1fr_1fr_80px] md:grid-cols-[1fr_1fr_120px_180px] text-xs">
+              <div>Player</div><div>Split</div><div>Version</div><div>Time</div>
+            </div>
+            <div class="border-b border-gray-700/50">runner one</div>
+            <div class="border-b border-gray-700/50">runner two</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
