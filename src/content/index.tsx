@@ -27,10 +27,31 @@ let settings: Settings | null = null;
 const mountWith = async (
   anchor: NonNullable<ReturnType<typeof anchorForPath>>,
   render: CreateMountOptions['render'],
+  pageChrome?: CreateMountOptions['pageChrome'],
 ): Promise<void> => {
-  current = createMount({ hostId: HOST_ID, anchor, css, render });
+  current = createMount({
+    hostId: HOST_ID,
+    anchor,
+    css,
+    render,
+    ...(pageChrome ? { pageChrome } : {}),
+  });
   await current.start();
 };
+
+/**
+ * 配信モードのページ側の細工。トップだけに効かせる。
+ * 個別ランページにも同じことをすると、ラン中に見に行ったときに何も読めなくなる。
+ */
+const homeChrome = (s: Settings): CreateMountOptions['pageChrome'] =>
+  s.stream.enabled
+    ? {
+        solo: s.stream.solo,
+        // 表の枠線を消すなら、それを載せている本家のカードの枠も一緒に消す
+        flat: s.stream.bare,
+        ...(s.stream.background ? { background: s.stream.background } : {}),
+      }
+    : undefined;
 
 const setup = async (pathname: string): Promise<void> => {
   current?.stop();
@@ -66,7 +87,7 @@ const setup = async (pathname: string): Promise<void> => {
     }
 
     if (anchor.kind === 'home') {
-      await mountWith(anchor, (root, page) => renderHome(root, s, page));
+      await mountWith(anchor, (root, page) => renderHome(root, s, page), homeChrome(s));
       return;
     }
 

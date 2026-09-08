@@ -23,6 +23,8 @@ export type PlayerStripProps = {
   favorites?: readonly string[];
   /** 渡すと開いた一覧に星が出る。畳んだ顔の列には出さない（1 行に収めたいので）。 */
   onToggleFavorite?: (name: string, on: boolean) => void;
+  /** 配信モード。下の区切り線を落として表と地続きにする。 */
+  bare?: boolean;
 };
 
 /** お気に入りを先頭へ。残りは API が返した順のまま。 */
@@ -45,6 +47,7 @@ export const PlayerStrip = ({
   playerHref,
   favorites = [],
   onToggleFavorite,
+  bare = false,
 }: PlayerStripProps) => {
   const { tip, tipProps } = useTip();
   const [open, setOpen] = useState(false);
@@ -63,7 +66,11 @@ export const PlayerStrip = ({
   const Entry = (playerHref ? 'a' : 'span') as 'a';
 
   return (
-    <div className={`ptc-players${open ? ' ptc-players--open' : ''}`}>
+    <div
+      className={`ptc-players${open ? ' ptc-players--open' : ''}${
+        bare ? ' ptc-players--bare' : ''
+      }`}
+    >
       <button
         type="button"
         className="ptc-players__toggle"

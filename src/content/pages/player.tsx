@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { FavoriteStar } from '../../react/FavoriteStar.js';
-import { isFavorite, saveFavorites, type Settings, withFavorite } from '../../settings.js';
+import { isFavorite, saveFavorites, type Settings, withName } from '../../settings.js';
 
 export const nickFromPlayerPath = (pathname: string): string | null =>
   pathname.match(/^\/(?:stats\/)?player\/([^/]+)\/?$/)?.[1] ?? null;
@@ -26,7 +26,7 @@ const FavoriteToggle = ({ settings, nick }: { settings: Settings; nick: string }
         name={nick}
         on={isFavorite(favorites, nick)}
         onToggle={(name, on) => {
-          const next = withFavorite(favorites, name, on);
+          const next = withName(favorites, name, on);
           setFavorites(next);
           void saveFavorites(next);
         }}

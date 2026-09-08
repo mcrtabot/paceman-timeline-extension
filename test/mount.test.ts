@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { anchorForPath, ANCHORS } from '../src/content/anchors.js';
-import { createMount, waitForAnchor } from '../src/content/mount.js';
+import { createMount, type PageChrome, waitForAnchor } from '../src/content/mount.js';
 
 // jsdom 環境では import.meta.url が http: になるので、cwd 基準で読む
 const runPageHtml = readFileSync(resolve('fixtures/dom/run-page.html'), 'utf8');
@@ -110,6 +110,91 @@ describe('waitForAnchor', () => {
     });
     ac.abort();
     expect(await pending).toBeNull();
+  });
+});
+
+/*
+ * 配信モードのページ側の細工。トップで使うものだが、ホストから body まで登るだけで
+ * ページ構造は見ないので、ここでは採取済みの個別ランページの DOM で確かめる。
+ */
+describe('stream overlay page chrome', () => {
+  const makeChromeMount = (pageChrome: PageChrome) => {
+    const mount = createMount({
+      hostId: 'ptc-host',
+      anchor: runAnchor,
+      css: '',
+      anchorTimeoutMs: 500,
+      pageChrome,
+      render: () => () => {},
+    });
+    mounts.push(mount);
+    return mount;
+  };
+
+  const displayOf = (selector: string) =>
+    document.querySelector<HTMLElement>(selector)!.style.display;
+
+  it('hides the siblings along the way, but not the path to the host', async () => {
+    await makeChromeMount({ solo: true }).start();
+
+    // ホストの隣にある本家のカードも、上の階層にある別の row も消える
+    expect(displayOf('div.run-card')).toBe('none');
+    expect(displayOf('div.row:has(div.twitchWrapper)')).toBe('none');
+    expect(displayOf('div.row:has(div.runHeader)')).toBe('none');
+    expect(displayOf('div.row:has(div.runButtons)')).toBe('none');
+    // 道筋は残る
+    expect(displayOf('main.main.world')).toBe('');
+    expect(displayOf('main > div.container')).toBe('');
+    expect(document.getElementById('ptc-host')!.style.display).toBe('');
+  });
+
+  it('puts the page back when it stops', async () => {
+    const mount = makeChromeMount({ solo: true });
+    await mount.start();
+    mount.stop();
+
+    expect(displayOf('div.run-card')).toBe('');
+    expect(displayOf('div.row:has(div.runHeader)')).toBe('');
+    expect(document.body.style.margin).toBe('');
+  });
+
+  it('paints the background it was given and clears what would cover it', async () => {
+    const mount = makeChromeMount({ background: '#00ff00' });
+    await mount.start();
+
+    // jsdom は色を rgb() に直して持つ
+    expect(document.body.style.backgroundColor).toBe('rgb(0, 255, 0)');
+    expect(
+      document.querySelector<HTMLElement>('main.main.world')!.style.backgroundColor,
+    ).toBe('transparent');
+    // 背景だけ頼んだので、まわりは消さない
+    expect(displayOf('div.run-card')).toBe('');
+
+    mount.stop();
+    expect(document.body.style.backgroundColor).toBe('');
+  });
+
+  it('flattens the frame the table sits in, and puts it back', async () => {
+    const mount = makeChromeMount({ flat: true });
+    await mount.start();
+
+    const frame = document.getElementById('ptc-host')!.parentElement!;
+    expect(frame.style.boxShadow).toBe('none');
+    expect(frame.style.backgroundColor).toBe('transparent');
+    expect(frame.style.borderRadius).toBe('0px');
+    // 枠を消すだけなので、まわりは消さない
+    expect(displayOf('div.run-card')).toBe('');
+
+    mount.stop();
+    expect(frame.style.boxShadow).toBe('');
+    expect(frame.style.backgroundColor).toBe('');
+    expect(frame.style.borderRadius).toBe('');
+  });
+
+  it('touches nothing when the overlay is off', async () => {
+    await makeChromeMount({}).start();
+    expect(displayOf('div.run-card')).toBe('');
+    expect(document.body.style.backgroundColor).toBe('');
   });
 });
 

@@ -8,7 +8,7 @@
 
 import { useState } from 'react';
 import { frontierIgt } from '../adapters/liveruns.js';
-import { isFavorite } from '../settings.js';
+import { isFavorite, TABLE_COLUMNS, type TableColumn } from '../settings.js';
 import { FavoriteStar } from './FavoriteStar.js';
 import { useAsset } from './AssetContext.js';
 import { SmallIcon, spriteStyleOf } from './SmallIcon.js';
@@ -55,9 +55,30 @@ export type LiveTableProps = {
   /** 頭アイコンのリンク先。プレイヤーの stats ページ。 */
   playerHref?: (run: RunTimeline) => string | undefined;
   emptyText?: string;
+  /*
+   * ここから下は配信モード用。既定は今までどおりの見た目で、settings.stream が
+   * OFF のあいだは呼び出し側が何も渡さない。
+   */
+  /** 出す列。既定は全部。 */
+  columns?: Readonly<Record<TableColumn, boolean>>;
+  /** 見出し行。既定は出す。 */
+  showHeader?: boolean;
+  /** 枠線と背景を落として中身だけにする。 */
+  bare?: boolean;
+  /** 文字色。空ならスタイルシートのまま。バーの先端のタイムにも同じ色を渡す。 */
+  textColor?: string;
   favorites?: readonly string[];
   /** 渡すと Player 列に星が出る。 */
   onToggleFavorite?: (name: string, on: boolean) => void;
+};
+
+/** 既定は全部出す。配信モードのときだけ呼び出し側が絞る。 */
+const ALL_COLUMNS: Readonly<Record<TableColumn, boolean>> = {
+  player: true,
+  split: true,
+  version: true,
+  time: true,
+  timeline: true,
 };
 
 /** 最後に到達したスプリット。完走なら credits。 */
@@ -75,6 +96,10 @@ export const LiveTable = ({
   runHref,
   playerHref,
   emptyText = 'No runs in progress',
+  columns = ALL_COLUMNS,
+  showHeader = true,
+  bare = false,
+  textColor = '',
   favorites = [],
   onToggleFavorite,
 }: LiveTableProps) => {
@@ -88,22 +113,44 @@ export const LiveTable = ({
       return next;
     });
 
+  const show = (column: TableColumn): boolean => columns[column];
+  const visible = TABLE_COLUMNS.filter(show);
+
   /* 表の TIME 列などもテーマの数字フォントに従わせる */
   const rootStyle = {
     '--ptc-digits-family': theme.tokens['--ptc-digits-family'],
+    /*
+     * 列を減らしたときだけ組み直す。幅そのものは timeline.css の --ptc-col-* に
+     * 置いてあるので、ここでは並べ直すだけで済む（行と展開したスプリット一覧が
+     * 同じ変数を見るので、両方まとめてずれない）。
+     */
+    ...(visible.length === TABLE_COLUMNS.length
+      ? {}
+      : { '--ptc-table-columns': visible.map((c) => `var(--ptc-col-${c})`).join(' ') }),
+    ...(textColor ? { color: textColor } : {}),
   } as React.CSSProperties;
 
-  return (
-  <div className="ptc-table" style={rootStyle}>
-    <div className="ptc-table__row ptc-table__row--head">
-      <div>Player</div>
-      <div>Split</div>
-      <div>Version</div>
-      <div>Time</div>
-      <div>Timeline</div>
-    </div>
+  // 先端のタイムはタイムライン側のトークンで色が決まる。表の文字色に合わせる
+  const tokens = textColor
+    ? { ...TABLE_TOKENS, '--ptc-text-color': textColor }
+    : TABLE_TOKENS;
 
-    {runs.length === 0 && <div className="ptc-table__empty">{emptyText}</div>}
+  return (
+  <div className={`ptc-table${bare ? ' ptc-table--bare' : ''}`} style={rootStyle}>
+    {showHeader && (
+      <div className="ptc-table__row ptc-table__row--head">
+        {show('player') && <div>Player</div>}
+        {show('split') && <div>Split</div>}
+        {show('version') && <div>Version</div>}
+        {show('time') && <div>Time</div>}
+        {show('timeline') && <div>Timeline</div>}
+      </div>
+    )}
+
+    {/* 空の文言は配信モードでは邪魔になるので、空文字を渡せば何も出さない */}
+    {runs.length === 0 && emptyText !== '' && (
+      <div className="ptc-table__empty">{emptyText}</div>
+    )}
 
     {runs.map((run) => {
       const key = run.worldId ?? String(run.runId ?? run.nickname);
@@ -131,80 +178,90 @@ export const LiveTable = ({
               .filter(Boolean)
               .join(' ')}
           >
-            <div className="ptc-table__player">
-              {onToggleFavorite && run.nickname && (
-                <FavoriteStar name={run.nickname} on={fav} onToggle={onToggleFavorite} />
-              )}
-              {head &&
-                (playerLink ? (
-                  <a
-                    className="ptc-table__head-link"
-                    href={playerLink}
-                    aria-label={`View stats for ${run.nickname ?? 'player'}`}
-                  >
+            {show('player') && (
+              <div className="ptc-table__player">
+                {onToggleFavorite && run.nickname && (
+                  <FavoriteStar name={run.nickname} on={fav} onToggle={onToggleFavorite} />
+                )}
+                {head &&
+                  (playerLink ? (
+                    <a
+                      className="ptc-table__head-link"
+                      href={playerLink}
+                      aria-label={`View stats for ${run.nickname ?? 'player'}`}
+                    >
+                      <img className="ptc-table__head" src={head} alt="" />
+                    </a>
+                  ) : (
                     <img className="ptc-table__head" src={head} alt="" />
+                  ))}
+                {/* liveAccount は配信中のときだけ入る。本家も配信中だけ名前をリンクにしている。 */}
+                {run.twitch ? (
+                  <a
+                    className="ptc-table__name ptc-table__name--live"
+                    href={`https://twitch.tv/${encodeURIComponent(run.twitch)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {run.nickname ?? '—'}
                   </a>
                 ) : (
-                  <img className="ptc-table__head" src={head} alt="" />
-                ))}
-              {/* liveAccount は配信中のときだけ入る。本家も配信中だけ名前をリンクにしている。 */}
-              {run.twitch ? (
-                <a
-                  className="ptc-table__name ptc-table__name--live"
-                  href={`https://twitch.tv/${encodeURIComponent(run.twitch)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {run.nickname ?? '—'}
-                </a>
-              ) : (
-                <span className="ptc-table__name">{run.nickname ?? '—'}</span>
-              )}
-            </div>
+                  <span className="ptc-table__name">{run.nickname ?? '—'}</span>
+                )}
+              </div>
+            )}
 
-            <div className="ptc-table__split">
-              {splitIcon && (
-                <SmallIcon
-                  className="ptc-table__split-icon"
-                  icon={splitIcon}
-                  outlined={split ? (theme.outlinedIcons?.has(split.type) ?? false) : false}
-                />
-              )}
-              <span>{split ? (theme.labels[split.type] ?? split.type) : '—'}</span>
-            </div>
+            {show('split') && (
+              <div className="ptc-table__split">
+                {splitIcon && (
+                  <SmallIcon
+                    className="ptc-table__split-icon"
+                    icon={splitIcon}
+                    outlined={split ? (theme.outlinedIcons?.has(split.type) ?? false) : false}
+                  />
+                )}
+                <span>{split ? (theme.labels[split.type] ?? split.type) : '—'}</span>
+              </div>
+            )}
 
-            <div className="ptc-table__version">{run.gameVersion ?? '—'}</div>
+            {show('version') && (
+              <div className="ptc-table__version">{run.gameVersion ?? '—'}</div>
+            )}
 
-            <button
-              type="button"
-              className="ptc-table__time"
-              aria-expanded={isOpen}
-              disabled={splits.length === 0}
-              onClick={() => toggle(key)}
-            >
-              {convertMillisecondsToTime(split?.igt ?? frontierIgt(run))}
-              {splits.length > 0 && (
-                <span className={`ptc-table__chevron${isOpen ? ' ptc-table__chevron--open' : ''}`}>
-                  ▾
-                </span>
-              )}
-            </button>
+            {show('time') && (
+              <button
+                type="button"
+                className="ptc-table__time"
+                aria-expanded={isOpen}
+                disabled={splits.length === 0}
+                onClick={() => toggle(key)}
+              >
+                {convertMillisecondsToTime(split?.igt ?? frontierIgt(run))}
+                {splits.length > 0 && (
+                  <span className={`ptc-table__chevron${isOpen ? ' ptc-table__chevron--open' : ''}`}>
+                    ▾
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* 個別ランページは新しいタブで開く。一覧を見失わずに戻れる方が使いやすい */}
-            <Cell
-              className={`ptc-table__timeline${runLink ? ' ptc-table__timeline--clickable' : ''}`}
-              {...(runLink
-                ? { href: runLink, target: '_blank', rel: 'noopener noreferrer' }
-                : {})}
-            >
-              <Timeline
-                run={run}
-                theme={theme}
-                scale={scaleOf(run)}
-                tokens={TABLE_TOKENS}
-                marker={markerOf?.(run)}
-              />
-            </Cell>
+            {show('timeline') && (
+              <Cell
+                className={`ptc-table__timeline${runLink ? ' ptc-table__timeline--clickable' : ''}`}
+                {...(runLink
+                  ? { href: runLink, target: '_blank', rel: 'noopener noreferrer' }
+                  : {})}
+              >
+                <Timeline
+                  run={run}
+                  theme={theme}
+                  scale={scaleOf(run)}
+                  tokens={tokens}
+                  marker={markerOf?.(run)}
+                />
+              </Cell>
+            )}
           </div>
 
           {isOpen && (
@@ -219,22 +276,26 @@ export const LiveTable = ({
                 const src = iconOf(item.type);
                 return (
                   <div className="ptc-table__splits-row" key={item.type}>
-                    <div />
-                    <div className="ptc-table__splits-name">
-                      {src && (
-                        <SmallIcon
-                          className="ptc-table__splits-icon"
-                          icon={src}
-                          outlined={theme.outlinedIcons?.has(item.type) ?? false}
-                        />
-                      )}
-                      <span>{theme.labels[item.type] ?? item.type}</span>
-                    </div>
-                    <div />
-                    <div className="ptc-table__splits-time">
-                      {convertMillisecondsToTime(item.igt)}
-                    </div>
-                    <div />
+                    {show('player') && <div />}
+                    {show('split') && (
+                      <div className="ptc-table__splits-name">
+                        {src && (
+                          <SmallIcon
+                            className="ptc-table__splits-icon"
+                            icon={src}
+                            outlined={theme.outlinedIcons?.has(item.type) ?? false}
+                          />
+                        )}
+                        <span>{theme.labels[item.type] ?? item.type}</span>
+                      </div>
+                    )}
+                    {show('version') && <div />}
+                    {show('time') && (
+                      <div className="ptc-table__splits-time">
+                        {convertMillisecondsToTime(item.igt)}
+                      </div>
+                    )}
+                    {show('timeline') && <div />}
                   </div>
                 );
               })}

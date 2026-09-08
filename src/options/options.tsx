@@ -8,9 +8,16 @@ import {
   DEFAULT_SETTINGS,
   HOME_SORTS,
   type HomeSort,
+  isFavorite,
   loadSettings,
+  parsePlayerList,
+  sameName,
   saveSettings,
   type Settings,
+  type StreamOverlay,
+  TABLE_COLUMNS,
+  type TableColumn,
+  withName,
 } from '../settings.js';
 import {
   ICON_SET_LABELS,
@@ -42,6 +49,14 @@ const CONTEXT_MARKER_LABELS: Readonly<Record<ContextMarker, string>> = {
 const HOME_SORT_LABELS: Readonly<Record<HomeSort, string>> = {
   page: 'Default',
   elapsed: 'Current time',
+};
+
+const COLUMN_LABELS: Readonly<Record<TableColumn, string>> = {
+  player: 'Player',
+  split: 'Split',
+  version: 'Version',
+  time: 'Time',
+  timeline: 'Timeline',
 };
 
 /*
@@ -173,6 +188,91 @@ const IconPreview = ({
   </span>
 );
 
+/**
+ * 「この人だけ」の指定。お気に入りはチェックボックスで足せるので、名前を打つのは
+ * お気に入りに入れていない人だけで済む。
+ *
+ * 入力欄は打っているあいだ文字列のまま持つ。保存した配列から組み直すと、
+ * 区切りを打った拍子にカーソルが飛ぶ。持つのはチェックボックス側の名前を除いたぶん。
+ */
+const PlayerFilter = ({
+  value,
+  favorites,
+  onChange,
+}: {
+  value: readonly string[];
+  favorites: readonly string[];
+  onChange: (names: string[]) => void;
+}) => {
+  const [text, setText] = useState(
+    value.filter((n) => !isFavorite(favorites, n)).join(', '),
+  );
+
+  return (
+    <>
+      {favorites.length > 0 && (
+        <div className="favchecks">
+          {favorites.map((name) => (
+            <label key={name} className="choice">
+              <input
+                type="checkbox"
+                checked={value.some((n) => sameName(n, name))}
+                onChange={(e) => onChange(withName(value, name, e.target.checked))}
+              />
+              {name}
+            </label>
+          ))}
+        </div>
+      )}
+      <input
+        type="text"
+        className="names"
+        value={text}
+        placeholder={favorites.length > 0 ? 'Someone else…' : 'mcrtabot, …'}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange([
+            ...parsePlayerList(e.target.value).filter((n) => !isFavorite(favorites, n)),
+            ...value.filter((n) => isFavorite(favorites, n)),
+          ]);
+        }}
+      />
+    </>
+  );
+};
+
+/** 色 1 つ。チェックを外すと「そのまま」に戻る（空文字で持つ）。 */
+const ColorRow = ({
+  label,
+  value,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  fallback: string;
+  onChange: (color: string) => void;
+}) => (
+  <div className="row">
+    <label>
+      <input
+        type="checkbox"
+        checked={value !== ''}
+        onChange={(e) => onChange(e.target.checked ? fallback : '')}
+      />
+      {label}
+    </label>
+    {value !== '' && (
+      <input
+        type="color"
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    )}
+  </div>
+);
+
 const App = () => {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
@@ -190,6 +290,10 @@ const App = () => {
     setSettings(next);
     void saveSettings(next);
   };
+
+  const stream = settings.stream;
+  const setStream = (patch: Partial<StreamOverlay>) =>
+    update({ stream: { ...stream, ...patch } });
 
   if (!ready) return <div>Loading…</div>;
 
@@ -381,6 +485,124 @@ const App = () => {
               </label>
             ))}
 
+          {/*
+            * 配信用。普段は使わないので一番下に置く。全体スイッチと同じで、
+            * チェックを入れるまで中身は出さない。効くのは Active Pace だけで、
+            * 一式そろえると「自分のタイムラインだけが載ったページ」になる。
+            */}
+          <h2>Stream overlay</h2>
+          <Row
+            hint={
+              <>
+                Turns the Active Pace table into something you can put on stream with a
+                window capture: keep only the runners you care about, drop the columns you
+                do not need, and strip the borders and backgrounds. Everything here is off
+                until you turn it on, and only affects the front page.
+              </>
+            }
+          >
+            <label>
+              <input
+                type="checkbox"
+                checked={stream.enabled}
+                onChange={(e) => setStream({ enabled: e.target.checked })}
+              />
+              Enable
+            </label>
+          </Row>
+
+          {stream.enabled && (
+            <>
+              <Row hint="Tick a favorite, or type any other names separated by commas or spaces. Leave all of it empty to show everyone. Case does not matter. Ticking here does not change your favorites — they keep sorting and coloring as usual.">
+                <SubHeading>Show only these players</SubHeading>
+              </Row>
+              <PlayerFilter
+                value={stream.onlyPlayers}
+                favorites={settings.favorites}
+                onChange={(onlyPlayers) => setStream({ onlyPlayers })}
+              />
+              <Row hint="Keeps a 0:00 row for anyone listed above who is not on pace right now, so the overlay does not jump around when they start or finish a run.">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={stream.keepRow}
+                    onChange={(e) => setStream({ keepRow: e.target.checked })}
+                  />
+                  Keep their row when they are not running
+                </label>
+              </Row>
+
+              <Row hint="Which columns the table draws. Uncheck everything but Timeline to leave just the bar.">
+                <SubHeading>Columns</SubHeading>
+              </Row>
+              {TABLE_COLUMNS.map((column) => (
+                <label key={column}>
+                  <input
+                    type="checkbox"
+                    checked={stream.columns[column]}
+                    onChange={(e) =>
+                      setStream({
+                        columns: { ...stream.columns, [column]: e.target.checked },
+                      })
+                    }
+                  />
+                  {COLUMN_LABELS[column]}
+                </label>
+              ))}
+              <label>
+                <input
+                  type="checkbox"
+                  checked={stream.showHeader}
+                  onChange={(e) => setStream({ showHeader: e.target.checked })}
+                />
+                Header row
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={stream.showPlayers}
+                  onChange={(e) => setStream({ showPlayers: e.target.checked })}
+                />
+                PLAYING strip
+              </label>
+
+              <Row hint="Every border and background comes off — the rows, the sticky header, and the PaceMan card the table sits in — so only the text and the bars are left. Colors below are optional — leave them off to keep PaceMan's.">
+                <SubHeading>Look</SubHeading>
+              </Row>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={stream.bare}
+                  onChange={(e) => setStream({ bare: e.target.checked })}
+                />
+                No borders or backgrounds
+              </label>
+              <ColorRow
+                label="Text color"
+                value={stream.textColor}
+                fallback="#ffffff"
+                onChange={(textColor) => setStream({ textColor })}
+              />
+              <ColorRow
+                label="Page background (for chroma key)"
+                value={stream.background}
+                fallback="#00ff00"
+                onChange={(background) => setStream({ background })}
+              />
+
+              <Row hint="Hides everything else on the front page — the site header, the card title and filters, the other panels — leaving the table alone on the page. Reload the page, or turn this off, to get PaceMan back.">
+                <SubHeading>Table only</SubHeading>
+              </Row>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={stream.solo}
+                  onChange={(e) => setStream({ solo: e.target.checked })}
+                />
+                Hide the rest of the page
+              </label>
+            </>
+          )}
         </>
       )}
     </>

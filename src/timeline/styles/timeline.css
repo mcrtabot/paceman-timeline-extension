@@ -489,13 +489,23 @@
  *   頭     32px、スプリットアイコン 28px、セル内の間隔 12px
  */
 .ptc-table {
+  /*
+   * 列の幅。1 列ずつ変数にしてあるのは、配信モードが列を減らすときに
+   * 残ったものを並べ直すだけで済ませるため（LiveTable がインラインで組み直す）。
+   */
+  --ptc-col-player: minmax(160px, 0.85fr);
+  --ptc-col-split: minmax(170px, 0.95fr);
+  --ptc-col-version: 76px;
+  --ptc-col-time: 84px;
+  --ptc-col-timeline: minmax(300px, 3.6fr);
+
   /* 行と展開したスプリット一覧で同じ列構成。SPLIT と TIME が揃う */
   --ptc-table-columns:
-    minmax(160px, 0.85fr)
-    minmax(170px, 0.95fr)
-    76px
-    84px
-    minmax(300px, 3.6fr);
+    var(--ptc-col-player)
+    var(--ptc-col-split)
+    var(--ptc-col-version)
+    var(--ptc-col-time)
+    var(--ptc-col-timeline);
 
   color: var(--ptc-text-color, #e6e8eb);
   font: normal normal 16px/24px system-ui, sans-serif;
@@ -645,6 +655,41 @@
   color: #e6e8eb;
 }
 
+/*
+ * 配信モード。枠線と背景を落として中身だけにする。
+ * 色を決め打ちしている行は inherit に寄せて、設定の文字色 1 つで揃うようにする
+ * （.ptc-table の color をインラインで受ける）。
+ */
+.ptc-table--bare .ptc-table__row,
+.ptc-table--bare .ptc-table__splits {
+  border-bottom: none;
+}
+
+.ptc-table--bare .ptc-table__row--head {
+  background: none;
+  backdrop-filter: none;
+}
+
+.ptc-table--bare .ptc-table__row--completed,
+.ptc-table--bare .ptc-table__row--fav {
+  background: none;
+}
+
+.ptc-table--bare .ptc-table__row--head,
+.ptc-table--bare .ptc-table__splits,
+.ptc-table--bare .ptc-table__splits-time,
+.ptc-table--bare .ptc-table__empty,
+.ptc-table--bare .ptc-table__name,
+.ptc-table--bare .ptc-table__row--fav .ptc-table__name,
+.ptc-table--bare .ptc-table__time:not(:disabled):hover {
+  color: inherit;
+}
+
+/* 背景を敷かないので、ホバーの反応も消す */
+.ptc-table--bare .ptc-table__timeline--clickable:hover {
+  background: none;
+}
+
 .ptc-table__empty {
   padding: 18px 16px;
   color: #8b95a3;
@@ -780,6 +825,11 @@
   border-bottom: 1px solid rgba(75, 85, 99, 0.3);
   font: normal normal 12px/1.4 system-ui, sans-serif;
   color: #8b95a3;
+}
+
+/* 配信モード。表と地続きに見せる */
+.ptc-players--bare {
+  border-bottom: none;
 }
 
 .ptc-players__toggle {

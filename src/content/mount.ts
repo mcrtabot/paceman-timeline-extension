@@ -18,10 +18,30 @@ export type MountHandle = {
   stop: () => void;
 };
 
+/**
+ * 配信用にページそのものを畳む指定。ホストを挿したあとに当てて、stop() で戻す。
+ *
+ * 構造は見ない。ホストから body まで登って、道筋にいない兄弟をすべて隠すだけ。
+ * anchors.ts のセレクタと違い、PaceMan のクラス名が変わっても効き続ける。
+ */
+export type PageChrome = {
+  /** ホストから body までの道筋以外を隠す。 */
+  solo?: boolean;
+  /**
+   * 道筋の枠と背景を落とす。表そのものの枠線は Shadow root の中で消せるが、
+   * それを載せている PaceMan のカードの枠と丸角は外からしか消せない。
+   */
+  flat?: boolean;
+  /** ページの背景色。空/未指定ならそのまま。 */
+  background?: string;
+};
+
 export type CreateMountOptions = {
   hostId: string;
   anchor: AnchorSpec;
   css: string;
+  /** 配信モード用。既定は何もしない。 */
+  pageChrome?: PageChrome;
   /**
    * shadow root に描画し、後片付けの関数を返す。
    * page.setReplacing(false) で anchors.ts の onlyWhenReplacing なスタイルが外れる。
@@ -86,6 +106,7 @@ export const createMount = ({
   anchor,
   css,
   render,
+  pageChrome = {},
   doc = document,
   anchorTimeoutMs = 15_000,
 }: CreateMountOptions): MountHandle => {
@@ -136,6 +157,83 @@ export const createMount = ({
         }
       }
     });
+  };
+
+  /**
+   * 配信モードのページ側の細工。控えは規則と同じ入れ物に入れておく（番号は
+   * styleWhileMounted の後ろに 1 つ足したもの）ので、戻すのは restoreRule に任せられる。
+   */
+  const CHROME_RULE = rules.length;
+
+  const applyChrome = (): void => {
+    const { solo, flat, background } = pageChrome;
+    if (!solo && !flat && !background) return;
+    const body = doc.body;
+    if (!host || !body) return;
+
+    const byEl = recordsFor(CHROME_RULE);
+    for (const el of byEl.keys()) if (!el.isConnected) byEl.delete(el);
+
+    const set = (el: HTMLElement, prop: string, value: string): void => {
+      let saved = byEl.get(el);
+      if (!saved) {
+        saved = new Map();
+        byEl.set(el, saved);
+      }
+      if (!saved.has(prop)) saved.set(prop, el.style.getPropertyValue(prop));
+      if (el.style.getPropertyValue(prop) !== value) el.style.setProperty(prop, value);
+    };
+
+    for (let el: HTMLElement | null = host; el && el !== body; el = el.parentElement) {
+      const parent = el.parentElement;
+      if (!parent) break;
+      if (solo) {
+        for (const sibling of Array.from(parent.children)) {
+          const s = sibling as HTMLElement;
+          // style を持たない要素（SVG など）は触らない
+          if (s === el || !s.style) continue;
+          set(s, 'display', 'none');
+        }
+        /*
+         * 道筋の余白は落とす。残すと、隠した中身のぶんだけ空いた枠の中央や
+         * ずっと下に表だけが浮く。max-width も外して幅いっぱいに使う。
+         */
+        if (parent !== body) {
+          set(parent, 'padding', '0');
+          set(parent, 'margin', '0');
+          set(parent, 'max-width', 'none');
+          set(parent, 'min-height', '0');
+        }
+      }
+      if (flat && parent !== body) {
+        set(parent, 'border', '0');
+        set(parent, 'border-radius', '0');
+        set(parent, 'box-shadow', 'none');
+        set(parent, 'background-color', 'transparent');
+        set(parent, 'background-image', 'none');
+      }
+      /*
+       * 背景を敷くときは、道筋の色を先に透かす。上に乗っている色が勝ってしまう。
+       * 一括指定ではなく個別指定で触る。戻すときに shorthand を消し切れない実装があり、
+       * PaceMan 側がグラデーションを敷いていても image まで落とせる。
+       */
+      if (background) {
+        set(parent, 'background-color', 'transparent');
+        set(parent, 'background-image', 'none');
+      }
+    }
+
+    if (solo) {
+      set(body, 'margin', '0');
+      set(body, 'padding', '0');
+    }
+    if (background) {
+      for (const el of [body, doc.documentElement]) {
+        if (!el) continue;
+        set(el, 'background-color', background);
+        set(el, 'background-image', 'none');
+      }
+    }
   };
 
   /**
@@ -208,6 +306,7 @@ export const createMount = ({
 
     place();
     applyPageStyles();
+    applyChrome();
 
     /*
      * 外されたら貼り直す。要素が差し替わったらスタイルも当て直す。
@@ -218,15 +317,14 @@ export const createMount = ({
     const view = doc.defaultView;
     const schedule = (): void => {
       if (pending) return;
+      const run = () => {
+        pending = 0;
+        applyPageStyles();
+        applyChrome();
+      };
       pending = view?.requestAnimationFrame
-        ? view.requestAnimationFrame(() => {
-            pending = 0;
-            applyPageStyles();
-          })
-        : (setTimeout(() => {
-            pending = 0;
-            applyPageStyles();
-          }) as unknown as number);
+        ? view.requestAnimationFrame(run)
+        : (setTimeout(run) as unknown as number);
     };
     cancelPending = () => {
       if (!pending) return;

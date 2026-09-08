@@ -22,9 +22,11 @@ import { useNow } from '../../react/useNow.js';
 import {
   type HomeSort,
   isFavorite,
+  passesFilter,
+  sameName,
   saveFavorites,
   type Settings,
-  withFavorite,
+  withName,
 } from '../../settings.js';
 import { estimateIgt, type LiveAnchor, nextAnchor } from '../../timeline/live.js';
 import { resolveScale } from '../../timeline/scale.js';
@@ -61,6 +63,32 @@ export const sortRuns = (
     : [...fav, ...ordered.filter((r) => !isFavorite(favorites, r.nickname))];
 };
 
+/**
+ * まだ Pace に載っていない人の行。合成 overworld:0 だけを持つ、何も踏んでいないラン。
+ *
+ * バーは空のまま（getTimelineLineItems は endIgt が 0 だと何も返さない）で、
+ * 先端マーカーも出ない（アンカーを張るのは liveruns から届いたランだけ）。
+ * 出せるのは名前と顔だけだが、配信では「まだ走り出していない」がそのまま読める。
+ */
+const waitingRun = (nickname: string): RunTimeline => ({
+  source: 'liveruns',
+  worldId: null,
+  runId: null,
+  nickname,
+  uuid: null,
+  gameVersion: null,
+  items: [{ type: 'overworld', igt: 0 }],
+  rtaByType: {},
+  context: [],
+  final: null,
+  isLive: false,
+  lastUpdated: null,
+  twitch: null,
+  vodId: null,
+  vodOffset: null,
+  numLeaves: null,
+});
+
 const LivePanel = ({ settings, page }: { settings: Settings; page?: PageControl }) => {
   const [runs, setRuns] = useState<RunTimeline[]>([]);
   // ラン 1 本ごとの「いつ・どこまで進んでいたか」。baseIgt が進んだときだけ張り直す
@@ -74,7 +102,7 @@ const LivePanel = ({ settings, page }: { settings: Settings; page?: PageControl 
    */
   const [favorites, setFavorites] = useState<readonly string[]>(settings.favorites);
   const toggleFavorite = (name: string, on: boolean) => {
-    const next = withFavorite(favorites, name, on);
+    const next = withName(favorites, name, on);
     setFavorites(next);
     void saveFavorites(next);
   };
@@ -136,7 +164,23 @@ const LivePanel = ({ settings, page }: { settings: Settings; page?: PageControl 
    * 9 分の完走だけ縮尺が変わる。
    */
   const igtOf = (run: RunTimeline): number => markerOf(run)?.igt ?? frontierIgt(run);
-  const sorted = sortRuns(runs, settings.homeSort, igtOf, favorites);
+  /*
+   * 配信モードの絞り込み。名前を挙げていなければ素通しなので、
+   * stream が ON でもリストが空のあいだは今までどおり全員出る。
+   */
+  const stream = settings.stream;
+  const only = stream.enabled ? stream.onlyPlayers : [];
+  const shown = runs.filter((r) => passesFilter(only, r.nickname));
+  const sorted = sortRuns(shown, settings.homeSort, igtOf, favorites);
+  /*
+   * 指名したのに Pace に載っていない人。0:00 の行として末尾に足す。
+   * 走り出す前から行の高さと位置が決まるので、配信に載せたまま待てる。
+   */
+  const waiting =
+    stream.enabled && stream.keepRow
+      ? only.filter((name) => !shown.some((r) => r.nickname && sameName(r.nickname, name)))
+      : [];
+  const rows = waiting.length === 0 ? sorted : [...sorted, ...waiting.map(waitingRun)];
 
   const ROW_MIN_MS = 15 * 60_000;
   const scaleOf = (run: RunTimeline): Scale => ({
@@ -153,25 +197,29 @@ const LivePanel = ({ settings, page }: { settings: Settings; page?: PageControl 
   /*
    * 出せる表があるときだけ本家の行を隠す。ランが 0 本のときや横取りが届く前に
    * 隠すと、本家を消したまま自分も何も出せない状態になる。
+   *
+   * 配信モードだけは 0 本でも居座る。ここで本家に戻すと、絞り込んだ人が走って
+   * いないあいだだけ本家の一覧が画面に出てくる。
    */
-  const hasRuns = sorted.length > 0;
+  const hasRuns = rows.length > 0 || stream.enabled;
   useEffect(() => {
     page?.setReplacing(hasRuns);
   }, [page, hasRuns]);
 
   return (
     <>
-      {settings.showPlayers && (
+      {(stream.enabled ? stream.showPlayers : settings.showPlayers) && (
         <PlayerStrip
-          players={players}
+          players={players.filter((n) => passesFilter(only, n))}
           playerHref={statsHref}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
+          bare={stream.enabled && stream.bare}
         />
       )}
       {hasRuns && (
         <LiveTable
-          runs={sorted}
+          runs={rows}
           theme={themeFromSettings(settings)}
           scaleOf={scaleOf}
           headUrlOf={headUrl}
@@ -180,6 +228,16 @@ const LivePanel = ({ settings, page }: { settings: Settings; page?: PageControl 
           playerHref={(run) => (run.nickname ? statsHref(run.nickname) : undefined)}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
+          {...(stream.enabled
+            ? {
+                columns: stream.columns,
+                showHeader: stream.showHeader,
+                bare: stream.bare,
+                textColor: stream.textColor,
+                // 走っている人が居ないときに文言だけ残らないように
+                emptyText: '',
+              }
+            : {})}
         />
       )}
     </>
