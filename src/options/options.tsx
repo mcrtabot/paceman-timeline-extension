@@ -531,6 +531,16 @@ const App = () => {
                   Keep their row when they are not running
                 </label>
               </Row>
+              <Row hint="Rows come out in the order you listed the names above and stay there — no reordering when someone is faster or starts a new run. Needs at least one name; everyone else follows below in the usual order.">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={stream.fixedOrder}
+                    onChange={(e) => setStream({ fixedOrder: e.target.checked })}
+                  />
+                  Keep them in the order listed
+                </label>
+              </Row>
 
               <Row hint="Which columns the table draws. Uncheck everything but Timeline to leave just the bar.">
                 <SubHeading>Columns</SubHeading>

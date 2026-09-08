@@ -57,6 +57,11 @@ export type StreamOverlay = {
    * 0:00 の行として出るので、走り出す前から配信のレイアウトが決まる。
    */
   keepRow: boolean;
+  /**
+   * 並び順を指名した順に固定する。誰が速いかでも、誰が走り出したかでも動かない。
+   * 名前を挙げていないと基準が無いので効かない。
+   */
+  fixedOrder: boolean;
   /** 枠線と背景を落として中身だけにする。 */
   bare: boolean;
   /** 文字色。空ならそのまま。 */
@@ -119,6 +124,7 @@ export const DEFAULT_SETTINGS: Settings = {
     showHeader: true,
     showPlayers: true,
     keepRow: false,
+    fixedOrder: false,
     bare: false,
     textColor: '',
     background: '',
@@ -169,6 +175,7 @@ const mergeStream = (stored: unknown): StreamOverlay => {
     showHeader: asBool(s.showHeader, d.showHeader),
     showPlayers: asBool(s.showPlayers, d.showPlayers),
     keepRow: asBool(s.keepRow, d.keepRow),
+    fixedOrder: asBool(s.fixedOrder, d.fixedOrder),
     bare: asBool(s.bare, d.bare),
     textColor: asColor(s.textColor),
     background: asColor(s.background),

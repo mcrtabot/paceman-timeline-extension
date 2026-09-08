@@ -172,15 +172,36 @@ const LivePanel = ({ settings, page }: { settings: Settings; page?: PageControl 
   const only = stream.enabled ? stream.onlyPlayers : [];
   const shown = runs.filter((r) => passesFilter(only, r.nickname));
   const sorted = sortRuns(shown, settings.homeSort, igtOf, favorites);
+  /** 指名した名前で今出ているランを引く。 */
+  const runOf = (name: string): RunTimeline | undefined =>
+    shown.find((r) => r.nickname !== null && sameName(r.nickname, name));
+
   /*
-   * 指名したのに Pace に載っていない人。0:00 の行として末尾に足す。
-   * 走り出す前から行の高さと位置が決まるので、配信に載せたまま待てる。
+   * 配信モードの行。
+   *
+   * keepRow    … 指名したのに Pace に載っていない人を 0:00 の行で埋める。
+   *              走り出す前から行の高さと位置が決まるので、載せたまま待てる
+   * fixedOrder … 並びを指名した順に固定する。タイムでも到達スプリットでも動かない。
+   *              名前を挙げていないと基準が無いので、そのときは普段の並びのまま
    */
-  const waiting =
-    stream.enabled && stream.keepRow
-      ? only.filter((name) => !shown.some((r) => r.nickname && sameName(r.nickname, name)))
+  const streamRows = (): RunTimeline[] => {
+    const waiting = stream.keepRow
+      ? only.filter((name) => runOf(name) === undefined)
       : [];
-  const rows = waiting.length === 0 ? sorted : [...sorted, ...waiting.map(waitingRun)];
+    if (!stream.fixedOrder || only.length === 0) {
+      return waiting.length === 0 ? sorted : [...sorted, ...waiting.map(waitingRun)];
+    }
+    const listed = only
+      .map((name) => runOf(name) ?? (stream.keepRow ? waitingRun(name) : undefined))
+      .filter((r): r is RunTimeline => r !== undefined);
+    // 名前を挙げていない人は絞り込みで既に落ちているが、絞り込みが空のときのために残す
+    const rest = sorted.filter(
+      (r) => !only.some((n) => r.nickname !== null && sameName(n, r.nickname)),
+    );
+    return [...listed, ...rest];
+  };
+
+  const rows = stream.enabled ? streamRows() : sorted;
 
   const ROW_MIN_MS = 15 * 60_000;
   const scaleOf = (run: RunTimeline): Scale => ({
