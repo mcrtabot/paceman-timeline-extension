@@ -58,6 +58,8 @@ export type TimelineItem = {
 export type ContextMarker = {
   key: string;
   igt: number;
+  /** ライブ推定のアンカーに使う。列で持っていない経路では null。 */
+  rta: number | null;
 };
 
 /** 全ページ・全データ源がここに収束する。 */

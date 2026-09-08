@@ -95,9 +95,12 @@ describe('resolveScale (fit) — the single-run page', () => {
 });
 
 describe('live position estimate', () => {
+  const SPLITS = ['enter_nether', 'enter_bastion', 'enter_fortress'] as const;
+  /** ポーズもロードも無いラン。rta = igt なので `lastUpdated - 最後の igt` が開始時刻。 */
   const run = (igts: number[], ctx: number[] = [], lastUpdated: number | null = null) => ({
-    items: [{ type: 'overworld', igt: 0 }, ...igts.map((igt, i) => ({ type: (['enter_nether','enter_bastion','enter_fortress'] as const)[i]!, igt }))],
-    context: ctx.map((igt) => ({ key: 'x', igt })),
+    items: [{ type: 'overworld', igt: 0 }, ...igts.map((igt, i) => ({ type: SPLITS[i]!, igt }))],
+    rtaByType: Object.fromEntries(igts.map((igt, i) => [SPLITS[i]!, igt])),
+    context: ctx.map((igt) => ({ key: 'x', igt, rta: igt })),
     lastUpdated,
   }) as never;
 
@@ -142,6 +145,66 @@ describe('live position estimate', () => {
     expect(a).toEqual({ baseIgt: 300_000, at: 1_000 });
     // 開いた瞬間から 5 分ぶん進んだ位置に出る（300_000 のままではない）
     expect(estimateIgt(a, 301_000)).toBe(600_000);
+  });
+
+  /*
+   * lastUpdated が動くのは eventList のスプリットが届いたときだけで、
+   * contextEventList では動かない（5 秒ポーリングで実測）。base だけ context の
+   * igt に進めて at を lastUpdated のままにすると、スプリットからその context までの
+   * 時間が二重に乗る。エンドインの 100 秒後にドラゴンを倒すと +100 秒ずれていた。
+   */
+  it('does not count the segment twice when a context event lands', () => {
+    const endIn = 600_000;
+    const dragon = 700_000;
+    const lu = 1_000; // enter_end が届いた壁時計時刻
+    const a = nextAnchor(undefined, run([endIn], [dragon], lu), lu + 100_000);
+
+    expect(a).toEqual({ baseIgt: dragon, at: lu + 100_000 });
+    // 倒した瞬間は 11:40。12:20（+ エンドインからの 100 秒）ではない
+    expect(estimateIgt(a, lu + 100_000)).toBe(dragon);
+    expect(estimateIgt(a, lu + 110_000)).toBe(dragon + 10_000);
+  });
+
+  it('keeps walking smoothly across a context event', () => {
+    const lu = 1_000;
+    const before = nextAnchor(undefined, run([600_000], [], lu), lu + 50_000);
+    expect(estimateIgt(before, lu + 100_000)).toBe(700_000);
+    // 同じ時刻に context が届いても、そこで跳ねない
+    const after = nextAnchor(before, run([600_000], [700_000], lu), lu + 100_000);
+    expect(estimateIgt(after, lu + 100_000)).toBe(700_000);
+  });
+
+  it('shifts by rta, so the pause inside the segment is not walked as igt', () => {
+    const r = {
+      items: [
+        { type: 'overworld', igt: 0 },
+        { type: 'enter_end', igt: 600_000 },
+      ],
+      rtaByType: { enter_end: 620_000 },
+      context: [{ key: 'kill_dragon', igt: 700_000, rta: 730_000 }],
+      lastUpdated: 620_000, // ラン開始 = 0
+    } as never;
+
+    const a = nextAnchor(undefined, r, 740_000);
+    expect(a).toEqual({ baseIgt: 700_000, at: 730_000 });
+    expect(estimateIgt(a, 740_000)).toBe(710_000);
+  });
+
+  it('stays on the last split when the context event has no rta', () => {
+    const r = {
+      items: [
+        { type: 'overworld', igt: 0 },
+        { type: 'enter_end', igt: 600_000 },
+      ],
+      rtaByType: { enter_end: 600_000 },
+      context: [{ key: 'kill_dragon', igt: 700_000, rta: null }],
+      lastUpdated: 1_000,
+    } as never;
+
+    // ずらす材料が無いので base は進めない。位置は now - at 側で追いつく
+    const a = nextAnchor(undefined, r, 101_000);
+    expect(a).toEqual({ baseIgt: 600_000, at: 1_000 });
+    expect(estimateIgt(a, 101_000)).toBe(700_000);
   });
 
   it('falls back to the observation time when lastUpdated is unusable', () => {

@@ -127,7 +127,7 @@ describe('getTimelinePattern', () => {
 });
 
 describe('clusterContextItems', () => {
-  const ctx = (igts: number[]) => igts.map((igt, i) => ({ key: `e${i}`, igt }));
+  const ctx = (igts: number[]) => igts.map((igt, i) => ({ key: `e${i}`, igt, rta: igt }));
 
   it('leaves well-separated markers alone', () => {
     const out = clusterContextItems(ctx([1 * MIN, 5 * MIN, 9 * MIN]), 12 * MIN);

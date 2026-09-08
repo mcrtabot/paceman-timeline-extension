@@ -43,7 +43,7 @@ export const fromLiveRun = (raw: unknown): RunTimeline | null => {
     const id = asString(e.eventId);
     const igt = asNumber(e.igt);
     if (!id || igt === null) continue;
-    context.push({ key: id.replace(/^rsg\./, ''), igt });
+    context.push({ key: id.replace(/^rsg\./, ''), igt, rta: asNumber(e.rta) });
   }
   context.sort((a, b) => a.igt - b.igt);
 
